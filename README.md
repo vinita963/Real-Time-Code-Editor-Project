@@ -1,63 +1,145 @@
-# Mock-code-editor
+**README**
 
-Libraries need to install -
+**This is how the Project File Structure looks like :** 
 
-1. For Backend -
+Mock-code-editor/
 
-A) npm install express cors ws y-websocket
-npm install typescript ts-node-dev @types/node @types/express --save-dev
+│
+
+├── frontend/               \# Angular App (UI \+ CodeMirror)
+
+│   └── src/app/editor/     \# Editor component (TS/HTML/SCSS)
+
+│
+
+└── backend/                \# Node.js Server (Gemini API \+ y-websocket)
+
+    ├── server.js
+
+    ├── package.json
+
+    └── .env
+
+
+**Here's the installation and set up guide :**
+
+**Pre Requisite :** VS Studio Code, Node.js
+
+**Backend Setup (Node.js) \-**
+
+**A. Install dependencies**:
+
+npm install express cors ws y-websocket
+
+npm install typescript ts-node-dev @types/node @types/express \--save-dev
+
 npm install node-fetch@3.3.2
-npm install helmet
-npm install dotenv
-npm install y-websocket --save
-npm install --save-dev concurrently
+
+npm install helmet dotenv
+
+npm install y-websocket \--save
+
 npm install @google/generative-ai
 
+npm install \--save-dev concurrently
 
+npx tsc \--init (For Initialize TypeScript)
 
-Explaination :
-| Library     | Purpose                            |
-| ----------- | ---------------------------------- |
-| express     | Backend HTTP server                |
-| cors        | Allow frontend to connect          |
-| ws          | WebSocket server for collaboration |
-| y-websocket | Yjs synchronized WebSocket server  |
-| typescript  | Type safety                        |
-| ts-node-dev | Development auto-reload            |
-| @types/*    | Type definitions                   |
+npm install y-websocket@1.4.5 (Required because newer versions removed setupWSConnection)
 
-B) Initialize type script - npx tsc --init
+**B. Configure environment variables:**
 
-C) We need to install a version of y-websocket that still exports setupWSConnection - npm install y-websocket@1.4.5
+Create a file: backend/.env
 
-D) Command to run Backend : npm run dev
+Add: GEMINI\_API\_KEY=YOUR\_KEY\_HERE
 
-2. For FrontEnd -
+Note : API key can be generated at- https://ai.google.dev/gemini-api
 
-A) npm install -g @angular/cli - ( Need to install the Angular CI first)
+**C. Command to run backend : npm run dev**
 
-B) ng new frontend --style=scss --routing=true
-ng new frontend : Creates a new Angular project named frontend
---style=scss : Sets the default stylesheet format for the project to SCSS (Sass) instead of plain CSS
---routing=true : Adds a routing module (app-routing.module.ts) to your project. This makes it easier to configure navigation between different components/pages using Angular’s Router.
+Backend runs:
 
-C) npm install yjs y-websocket
-   npm install codemirror @codemirror/basic-setup @codemirror/lang-javascript @codemirror/autocomplete
-   npm install y-codemirror.next
-   npm install zone.js
+	REST API: http://localhost:3000
 
-Explaination :
-| Library                     | Purpose                                 |
-| --------------------------- | --------------------------------------- |
-| yjs                         | Shared data structure                   |
-| y-websocket                 | Connects Yjs to backend WebSocket       |
-| codemirror                  | Core code editor                        |
-| @codemirror/basic-setup     | Basic editing features                  |
-| @codemirror/lang-javascript | Syntax highlighting                     |
-| @codemirror/autocomplete    | Lays foundation for AI completion later |
-| y-codemirror.next           | Shows other users' cursors              |
+	Collaboration WS: ws://localhost:1234
 
-D) ng generate component editor
+**Frontend Setup (Angular) \-**
 
-E) Command to run Frontend : ng serve
+A. Install Angular CLI \- npm install \-g @angular/cli
+
+B. Create Angular Project \- ng new frontend \--style=scss \--routing=true
+
+C. Install editor \+ collaboration libraries:
+
+npm install yjs y-websocket
+
+npm install codemirror @codemirror/basic-setup @codemirror/lang-javascript @codemirror/autocomplete
+
+npm install y-codemirror.next
+
+npm install zone.js
+
+ng generate component editor (Create Editor Component)
+
+D. Command to run backend : ng serve
+
+**How the Components Work Together:**
+
+1\. Frontend (Angular \+ CodeMirror):
+
+Loads EditorView inside \#editorContainer
+
+Applies extensions: basicSetup, javascript(), autocompletion(), yCollab()
+
+Sends code \+ cursor position → backend → Gemini API
+
+Renders suggestions inside CodeMirror autocomplete popup
+
+2\. Backend (Node.js):
+
+Hosts a REST autocomplete endpoint
+
+Forwards requests to Gemini API
+
+Returns structured suggestion list
+
+Hosts Y-WebSocket server for real-time sync
+
+3\. Gemini API"
+
+Backend calls:
+
+Model: gemini-2.5-pro
+
+Prompt includes:
+
+Current code
+
+Cursor context
+
+Output constraints
+
+Gemini returns code suggestions → backend → Angular → CodeMirror UI.
+
+**Testing Collaboration \+ AI Features:**
+
+1. Start backend:
+
+npm run dev
+
+2. Start frontend:
+
+ng serve
+
+3. Open two browser windows:
+
+[http://localhost:4200?room=demo](http://localhost:4200?room=demo)
+
+[http://localhost:4200?room=demo](http://localhost:4200?room=demo) 
+
+Type in one → changes appear in the other instantly
+
+Similarly for AI Completion, type something eg: for and observe the suggestions
+
+Please note : Suggestions are working but not that accurately. Due to time constraints, I wasn't able to implement it in an accurate way.
 
