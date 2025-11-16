@@ -15,15 +15,6 @@ export function createWSServer(server: http.Server) {
 
   // Connect Yjs to incoming WebSocket upgrades
   server.on("upgrade", (req, socket, head) => {
-    
-    /*
-    // Example URL pattern: ws://localhost:3000/room123
-    const handle = (ws: any) => {
-      setupWSConnection(ws, req);
-    };
-
-    wss.handleUpgrade(req, socket, head, handle);
-  });*/
   wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
       });

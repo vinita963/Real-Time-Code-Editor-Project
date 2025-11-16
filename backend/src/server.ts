@@ -11,7 +11,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { createWSServer } from './websocket';
 
-
 const app = express();
 app.use(helmet());
 app.use(express.json());
@@ -21,9 +20,8 @@ app.use(bodyParser.json({ limit: "200kb" }));
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const PORT = process.env.PORT ?? 3000;
-//const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? "";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-console.log("Gemini API Key:", GEMINI_API_KEY); // just to verify
+//console.log("Gemini API Key:", GEMINI_API_KEY); // just to verify
 
 
 if (!GEMINI_API_KEY) {
@@ -35,7 +33,6 @@ if (!GEMINI_API_KEY) {
  * Expects { language, prefix, suffix, cursorOffset, maxTokens?, numSuggestions? }
  * Returns: { suggestions: Array<{ label, insertText, detail, score? }> }
  */
-
 
 app.post("/api/complete", async (req, res) => {
   try {
@@ -53,7 +50,7 @@ app.post("/api/complete", async (req, res) => {
 
   
     // This example uses an API key method in Authorization: Bearer key.
-    const endpoint = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 
     const requestPayload = {
@@ -63,8 +60,8 @@ app.post("/api/complete", async (req, res) => {
         }
       ],
       generationConfig: {
-          maxOutputTokens: maxTokens,
-          temperature: 0.15
+          maxOutputTokens: 2048,
+          temperature: 0.2
       }
     };
 
@@ -84,8 +81,9 @@ app.post("/api/complete", async (req, res) => {
     }
 
     const json = await response.json();
+    //console.log("RAW GEMINI OUTPUT:", JSON.stringify(json, null, 2));
+
     // Extract text output depending on Gemini's actual response structure
-    // The SDK/endpoint might return something like { output: [{ content: "..." }] } — adapt if needed
     const textOutput = extractTextFromGeminiResponse(json);
 
     // Try to parse the model output as JSON. We asked the model to return JSON.
@@ -95,11 +93,13 @@ app.post("/api/complete", async (req, res) => {
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
       suggestions = fallbackParseTextToSuggestions(textOutput, numSuggestions);
     }
-
+    
     // Trim to requested numSuggestions
     suggestions = suggestions.slice(0, numSuggestions).map(s => sanitizeSuggestion(s));
-
+    //console.log("FINAL SUGGESTIONS:", suggestions);
     return res.json({ suggestions });
+  
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "internal_server_error", details: String(err) });
@@ -108,7 +108,7 @@ app.post("/api/complete", async (req, res) => {
  
 
 
-/* ---------------- helper functions ---------------- */
+/* Functions*/
 
 function buildGeminiPrompt(opts: {
   language: string;
@@ -124,81 +124,78 @@ function buildGeminiPrompt(opts: {
 
   // Keep the prompt precise and bounded. Provide examples.
   const prompt = `
-You are a helpful code-completion assistant. The user's file is ${language}.
-You will be given the code context consisting of text before the cursor (PREFIX) and text after the cursor (SUFFIX).
-Provide up to ${numSuggestions} completion suggestions in strict JSON format: an array of objects with keys:
-- label: short description (e.g., "for loop", "fetchData")
-- insertText: the exact snippet to insert at the cursor (use \\n for newlines).
-- detail: a one-sentence explanation of the suggestion.
-- score: optional numeric score 0.0-1.0 (higher is better).
+  You are a code completion assistant. Return ONLY a JSON array of suggestions.
 
-Do NOT output any commentary or extra text outside the JSON array.
+  Each item must contain:
+  - label: short name
+  - insertText: code snippet
+  - detail: brief explanation
 
-PREFIX:
-\`\`\`
-${prefix}
-\`\`\`
+  PREFIX:
+  ${prefix}
 
-SUFFIX:
-\`\`\`
-${suffix}
-\`\`\`
+  SUFFIX:
+  ${suffix}
 
-Cursor is located at the end of the PREFIX. Provide suggestions that are syntactically appropriate. Prioritize concise, correct completions. Example JSON output:
+  Example:
+  [
+    {
+      "label": "console.log",
+      "insertText": "console.log('Hello');",
+      "detail": "Logs a message to the console"
+    }
+  ]
+` ;
 
-[
-  {"label":"console.log snippet","insertText":"console.log(variable);","detail":"log variable to console","score":0.9},
-  {"label":"for loop","insertText":"for (let i = 0; i < arr.length; i++) {\\n  const item = arr[i];\\n}","detail":"basic for loop over array","score":0.7}
-]
-
-Now produce the JSON array for the given PREFIX/SUFFIX.
-`;
   return prompt;
-}
+} 
 
-function extractTextFromGeminiResponse(geminiJson: any): string {
-  // Adapt to actual Gemini response shape. Try common fields.
+function extractTextFromGeminiResponse(json: any): string {
   try {
-    // If SDK: geminiJson?.outputText or geminiJson?.candidates[0]?.content
-    if (typeof geminiJson === "string") return geminiJson;
-    if (geminiJson?.output?.[0]?.content) {
-      // Some endpoints nest text content in output[0].content
-      const content = geminiJson.output[0].content;
-      if (typeof content === "string") return content;
-      // if content is an array of objects, join text parts
-      if (Array.isArray(content)) {
-        return content.map((c: any) => (typeof c === "string" ? c : c.text ?? "")).join("");
-      }
+    if (json?.candidates?.[0]?.content?.parts) {
+      const parts = json.candidates[0].content.parts;
+      return parts.map((p: any) => p.text ?? "").join("");
     }
-    if (geminiJson?.candidates?.[0]?.output) {
-      return geminiJson.candidates[0].output;
+
+    if (json?.candidates?.[0]?.content?.[0]?.text) {
+      return json.candidates[0].content[0].text;
     }
-    if (geminiJson?.candidates?.[0]?.content?.[0]?.text) {
-      return geminiJson.candidates[0].content[0].text;
-    }
-    // fallback to JSON stringify
-    return JSON.stringify(geminiJson);
+
+    return "";
   } catch (e) {
-    return String(geminiJson);
+    console.error("Failed extract:", e);
+    return "";
   }
 }
 
-function parseSuggestionsFromModel(text: string) {
-  // Try to locate the first JSON array in the text and parse it.
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start >= 0 && end > start) {
-    const jsonText = text.substring(start, end + 1);
-    try {
-      const arr = JSON.parse(jsonText);
-      if (Array.isArray(arr)) return arr;
-    } catch (e) {
-      // ignore parse error
-      console.warn("JSON parse failed for model output:", e);
+function parseSuggestionsFromModel(raw: string) {
+  try {
+    // 1. Remove ```json fences
+    let text = raw.replace(/```json/gi, "")
+                  .replace(/```/g, "");
+
+    // 2. Find first "[" and last "]"
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
+
+    if (start < 0 || end < 0) {
+      throw new Error("JSON array not found");
     }
+
+    let jsonText = text.substring(start, end + 1);
+
+    // 3. Try parsing
+    const parsed = JSON.parse(jsonText);
+
+    if (Array.isArray(parsed)) return parsed;
+
+    return null;
+  } catch (e) {
+    console.error("JSON parse failed:", e);
+    return null;
   }
-  return null;
 }
+
 
 function fallbackParseTextToSuggestions(text: string, maxSuggestions: number) {
   // Naive fallback: split lines, return top N lines as insertText
@@ -208,18 +205,33 @@ function fallbackParseTextToSuggestions(text: string, maxSuggestions: number) {
     label: line.length > 40 ? line.slice(0, 37) + "..." : line,
     insertText: line,
     detail: "Fallback suggestion",
-    score: 0.5 - i * 0.05
+    
   }));
 }
 
 function sanitizeSuggestion(s: any) {
+  let label = s.label ?? s.title ?? s.summary ?? s.insertText ?? s.text;
+
+  if (typeof label !== "string") {
+    label = JSON.stringify(label ?? "") ?? "";
+  }
+
+  label = label.trim();
+  if (label.length === 0) label = "completion";
+
+  let insertText = s.insertText ?? s.text ?? "";
+  if (typeof insertText !== "string") insertText = String(insertText ?? "");
+
+  let detail = s.detail ?? s.description ?? "";
+  if (typeof detail !== "string") detail = String(detail ?? "");
+
   return {
-    label: String(s.label ?? s.title ?? s.summary ?? "").substring(0, 200),
-    insertText: String(s.insertText ?? s.text ?? s.snippet ?? ""),
-    detail: String(s.detail ?? s.description ?? "").substring(0, 500),
-    score: typeof s.score === "number" ? s.score : undefined
+    label,
+    insertText,
+    detail,
   };
 }
+
 
 const server = app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
