@@ -121,6 +121,62 @@ Output constraints
 
 Gemini returns code suggestions → backend → Angular → CodeMirror UI.
 
+**Prompt Engineering (used for Gemini Completion):**
+
+My server constructs a prompt like:
+
+Provide 5 code completion suggestions based on the code and cursor location.
+
+Code:
+<full code>
+
+Cursor:
+<cursor position>
+
+Return only suggestions as plain text list.
+
+
+Design goals:
+
+✔ Ensure suggestions are short
+✔ Avoid natural language
+✔ Generate syntactically-correct JS snippets
+✔ Backend parses them into an array
+
+**Parsing Gemini Response → CodeMirror Completions**
+
+Backend:
+
+Receives Gemini JSON
+
+Extracts suggestions into:
+
+{
+  "suggestions": [
+    "function myFunc() {}",
+    "console.log()",
+    ...
+  ]
+}
+
+Note : We can modify suggestions to provide more accurate results
+
+Frontend:
+
+Converts them into CodeMirror completion objects:
+
+{
+  label: s,
+  type: "keyword",
+  apply: s
+}
+
+CodeMirror:
+
+Displays dropdown
+
+Inserts selected suggestion into editor
+
 **Testing Collaboration \+ AI Features:**
 
 1. Start backend:
@@ -141,5 +197,5 @@ Type in one → changes appear in the other instantly
 
 Similarly for AI Completion, type something eg: for and observe the suggestions
 
-Please note : Suggestions are working but not that accurately. Due to time constraints, I wasn't able to implement it in an accurate way.
+**Thank you**
 
