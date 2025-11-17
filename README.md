@@ -138,10 +138,10 @@ Return only suggestions as plain text list.
 
 Design goals:
 
-✔ Ensure suggestions are short
-✔ Avoid natural language
-✔ Generate syntactically-correct JS snippets
-✔ Backend parses them into an array
+- Ensure suggestions are short
+- Avoid natural language
+- Generate syntactically-correct JS snippets
+- Backend parses them into an array
 
 **Parsing Gemini Response → CodeMirror Completions**
 
